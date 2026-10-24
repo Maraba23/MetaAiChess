@@ -43,7 +43,7 @@ struct ContentView: View {
           if watcher.isOn {
             Text(watcher.status).font(.caption).foregroundStyle(.secondary).lineLimit(2)
           }
-        } else {
+        } else if glasses.isAvailable {
           primaryButton
         }
       }
@@ -84,6 +84,7 @@ struct ContentView: View {
   }
 
   private var glassesStatus: String {
+    if !glasses.isAvailable { return "Óculos indisponível: toque no tabuleiro" }
     if !glasses.isRegistered { return "Óculos não conectado" }
     if !glasses.hasDevice { return "Procurando o óculos…" }
     if glasses.isStreaming { return "Câmera do óculos ligada" }

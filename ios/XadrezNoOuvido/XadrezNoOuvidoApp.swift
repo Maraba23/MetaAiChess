@@ -9,12 +9,15 @@ struct XadrezNoOuvidoApp: App {
   @State private var watcher = MoveWatcher()
 
   init() {
+    // Touching Wearables.shared after a failed configure() crashes, so the board must work without it
+    var wearables: WearablesInterface?
     do {
       try Wearables.configure()
+      wearables = Wearables.shared
     } catch {
       NSLog("[XadrezNoOuvido] Failed to configure Wearables SDK: \(error)")
     }
-    _glasses = State(wrappedValue: GlassesManager(wearables: Wearables.shared))
+    _glasses = State(wrappedValue: GlassesManager(wearables: wearables))
   }
 
   var body: some Scene {
@@ -24,7 +27,8 @@ struct XadrezNoOuvidoApp: App {
         .onOpenURL { url in
           guard
             let components = URLComponents(url: url, resolvingAgainstBaseURL: false),
-            components.queryItems?.contains(where: { $0.name == "metaWearablesAction" }) == true
+            components.queryItems?.contains(where: { $0.name == "metaWearablesAction" }) == true,
+            glasses.isAvailable
           else { return }
           Task {
             do {

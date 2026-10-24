@@ -67,10 +67,11 @@ final class ChessBridge: NSObject, WKScriptMessageHandler {
   }
 
   nonisolated func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-    guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
-    let data = try? JSONSerialization.data(withJSONObject: body)
-    let text = body["text"] as? String
+    // WebKit delivers script messages on the main thread
     MainActor.assumeIsolated {
+      guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+      let data = try? JSONSerialization.data(withJSONObject: body)
+      let text = body["text"] as? String
       switch type {
       case "speak":
         if let text { speaker.speak(text) }

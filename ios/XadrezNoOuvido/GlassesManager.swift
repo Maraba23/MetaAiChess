@@ -16,19 +16,26 @@ final class GlassesManager {
   var latestFrameDate: Date?
   var errorMessage: String?
 
+  /// False when the Meta SDK failed to configure (e.g. in the Simulator); tapping the board still works
+  var isAvailable: Bool { wearables != nil }
   var isRegistered: Bool { registrationState == .registered }
   var isStreaming: Bool { streamState == .streaming }
 
-  @ObservationIgnored private let wearables: WearablesInterface
-  @ObservationIgnored private let deviceSelector: AutoDeviceSelector
+  @ObservationIgnored private let wearables: WearablesInterface?
+  @ObservationIgnored private let deviceSelector: AutoDeviceSelector?
   @ObservationIgnored private var session: DeviceSession?
   @ObservationIgnored private var camera: MWDATCamera.Camera?
   @ObservationIgnored private let sessionTokens = ListenerTokenBag()
   @ObservationIgnored private let streamTokens = ListenerTokenBag()
   @ObservationIgnored private var tasks: [Task<Void, Never>] = []
 
-  init(wearables: WearablesInterface) {
+  init(wearables: WearablesInterface?) {
     self.wearables = wearables
+    guard let wearables else {
+      registrationState = .unavailable
+      deviceSelector = nil
+      return
+    }
     self.deviceSelector = AutoDeviceSelector(wearables: wearables)
     self.registrationState = wearables.registrationState
     tasks.append(Task { [weak self] in
@@ -45,7 +52,7 @@ final class GlassesManager {
   }
 
   func connect() {
-    guard registrationState != .registering else { return }
+    guard let wearables, registrationState != .registering else { return }
     Task {
       do {
         try await wearables.startRegistration()
@@ -57,6 +64,7 @@ final class GlassesManager {
 
   func disconnect() {
     stopCamera()
+    guard let wearables else { return }
     Task {
       do {
         try await wearables.startUnregistration()
@@ -68,7 +76,7 @@ final class GlassesManager {
 
   /// Starts a device session; the camera stream begins once the session reports `.started`.
   func startCamera() {
-    guard session == nil else { return }
+    guard let wearables, let deviceSelector, session == nil else { return }
     do {
       let newSession = try wearables.createSession(deviceSelector: deviceSelector)
       session = newSession
@@ -105,7 +113,7 @@ final class GlassesManager {
   }
 
   private func beginStreamIfAllowed() async {
-    guard let session, session.state == .started, camera == nil else { return }
+    guard let wearables, let session, session.state == .started, camera == nil else { return }
     do {
       if try await wearables.checkPermissionStatus(.camera) != .granted {
         // Opens Meta AI so you can allow camera access for this app
