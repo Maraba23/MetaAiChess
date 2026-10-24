@@ -15,7 +15,9 @@ O tabuleiro, o Stockfish e o texto falado são os mesmos da versão web (`../app
 - Mac com **Xcode 26.4 ou mais novo**
 - iPhone com **iOS 17.2 ou mais novo**
 - App **Meta AI** com o óculos pareado
-- Chave da API do Claude, criada em console.anthropic.com › API Keys. Cada leitura do tabuleiro é paga, veja a seção de custo abaixo.
+- Alguém pra ler o tabuleiro, de um destes dois jeitos:
+  - **O servidor do Mac**, que é grátis e usa o Claude Code da sua assinatura. Veja [../mac/README.md](../mac/README.md).
+  - **Uma chave da API do Claude**, que é paga. Veja a seção de custo abaixo.
 - **XcodeGen**: `brew install xcodegen`
 
 ## Passo a passo
@@ -34,7 +36,7 @@ O tabuleiro, o Stockfish e o texto falado são os mesmos da versão web (`../app
 4. **Configure a assinatura.** No Xcode, vá em target › Signing & Capabilities, escolha seu Team e troque o Bundle Identifier por um seu, por exemplo `com.seunome.xadreznoouvido`.
 5. **Rode no iPhone.** Conecte o iPhone por cabo, selecione-o como destino e aperte ▶. Na primeira vez, autorize o desenvolvedor no iPhone em Ajustes › Geral › VPN e Gerenciamento de Dispositivo.
 6. **No app:**
-   1. Toque na engrenagem e cole a chave da API.
+   1. Toque na engrenagem. Escolha **Mac (grátis)**, preencha o endereço e o código que o `board_server.py` mostrou e toque em **Testar conexão**. Se preferir pagar pela API, escolha **API do Claude** e cole a chave.
    2. Toque em **Conectar óculos**. O Meta AI abre pra você autorizar e depois volta pro app.
    3. Toque em **Ligar câmera do óculos** e permita o acesso à câmera no Meta AI.
    4. Ative **Ler lances pelo óculos**.
@@ -50,7 +52,9 @@ O tabuleiro, o Stockfish e o texto falado são os mesmos da versão web (`../app
 
 ## Custo
 
-Por padrão, o app usa o modelo **Opus 5.5**. Cada leitura do tabuleiro custa em torno de **US$ 0,01**. Numa partida de 40 lances, com o app olhando a cada 3 segundos, dá cerca de **US$ 1 a 3**.
+Com o **servidor do Mac**, a leitura não custa nada além da sua assinatura do Claude. As chamadas só contam no seu limite de uso, veja [../mac/README.md](../mac/README.md).
+
+Com a **API do Claude**, o app usa por padrão o modelo **Opus 5.5**. Cada leitura do tabuleiro custa em torno de **US$ 0,01**. Numa partida de 40 lances, com o app olhando a cada 3 segundos, dá cerca de **US$ 1 a 3**.
 
 Nos ajustes você pode trocar para o **Haiku 5.5**, que custa umas 30 vezes menos e responde mais rápido, mas pode errar mais.
 

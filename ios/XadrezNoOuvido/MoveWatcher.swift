@@ -1,7 +1,8 @@
 import Observation
 import UIKit
 
-/// While it's the friend's turn, looks at a glasses frame every few seconds and asks Claude whether a move happened.
+/// While it's the friend's turn, looks at a glasses frame every few seconds and asks whether a move happened
+/// (through the Mac server or the Claude API, per settings).
 /// A move only goes on the board after two readings in a row agree, so a hand passing over the board doesn't count.
 @Observable
 @MainActor
@@ -50,9 +51,9 @@ final class MoveWatcher {
     }
 
     status = candidate == nil ? "Olhando o tabuleiro…" : "Confirmando o lance…"
-    let vision = ClaudeVision(apiKey: settings.apiKey, model: settings.model)
+    let reader = MoveReaderFactory.make(settings)
     do {
-      let answer = try await vision.detectMove(in: frame, state: state)
+      let answer = try await reader.detectMove(in: frame, state: state)
       lookCount += 1
       // You may have typed the move by hand while Claude was looking
       guard bridge.state?.fen == state.fen else {

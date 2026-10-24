@@ -95,31 +95,60 @@ struct SettingsView: View {
   @Bindable var settings: AppSettings
   let glasses: GlassesManager
   @Environment(\.dismiss) private var dismiss
+  @State private var macCheck: String?
 
   var body: some View {
     NavigationStack {
       Form {
         Section {
-          SecureField("sk-ant-…", text: $settings.apiKey)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled()
-        } header: {
-          Text("Chave da API do Claude")
-        } footer: {
-          Text("Crie em console.anthropic.com › API Keys. Fica guardada só neste iPhone, no Keychain.")
-        }
-
-        Section {
-          Picker("Modelo", selection: $settings.model) {
-            ForEach(AppSettings.models, id: \.id) { Text($0.label).tag($0.id) }
+          Picker("Quem lê o tabuleiro", selection: $settings.backend) {
+            Text("Mac (grátis)").tag(AppSettings.Backend.mac)
+            Text("API do Claude (paga)").tag(AppSettings.Backend.claudeAPI)
           }
+          .pickerStyle(.segmented)
           Stepper(value: $settings.interval, in: 2...8, step: 1) {
             Text("Olhar a cada \(Int(settings.interval)) s")
           }
         } header: {
           Text("Leitura do tabuleiro")
         } footer: {
-          Text("O app só olha o tabuleiro na vez do seu amigo. Cada olhada é uma chamada paga à API. Intervalos maiores gastam menos, mas o lance demora mais pra chegar.")
+          Text("O app só olha o tabuleiro na vez do seu amigo. Intervalos maiores fazem menos chamadas, mas o lance demora mais pra chegar.")
+        }
+
+        if settings.backend == .mac {
+          Section {
+            TextField("http://192.168.0.12:8765", text: $settings.macURL)
+              .keyboardType(.URL)
+              .textInputAutocapitalization(.never)
+              .autocorrectionDisabled()
+            TextField("Código", text: $settings.macToken)
+              .textInputAutocapitalization(.never)
+              .autocorrectionDisabled()
+            Button("Testar conexão") {
+              macCheck = "Testando…"
+              Task { macCheck = await MacVision.ping(serverURL: settings.macURL, token: settings.macToken) }
+            }
+            if let macCheck {
+              Text(macCheck).font(.footnote).foregroundStyle(.secondary)
+            }
+          } header: {
+            Text("Leitura pelo Mac")
+          } footer: {
+            Text("Rode `python3 mac/board_server.py` no Mac e copie o endereço e o código que ele mostra. Usa o Claude Code da sua assinatura, sem custo extra.")
+          }
+        } else {
+          Section {
+            SecureField("sk-ant-…", text: $settings.apiKey)
+              .textInputAutocapitalization(.never)
+              .autocorrectionDisabled()
+            Picker("Modelo", selection: $settings.model) {
+              ForEach(AppSettings.models, id: \.id) { Text($0.label).tag($0.id) }
+            }
+          } header: {
+            Text("API do Claude")
+          } footer: {
+            Text("Crie a chave em console.anthropic.com › API Keys. Fica guardada só neste iPhone, no Keychain. Cada olhada é uma chamada paga.")
+          }
         }
 
         if glasses.isRegistered {

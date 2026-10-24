@@ -5,11 +5,27 @@ import Security
 @Observable
 @MainActor
 final class AppSettings {
+  enum Backend: String, CaseIterable {
+    case mac   // mac/board_server.py running Claude Code on your subscription: free
+    case claudeAPI   // pay-per-use Claude API key
+  }
+
   static let models: [(id: String, label: String)] = [
     ("claude-opus-5-5", "Opus 5.5 · lê melhor o tabuleiro"),
     ("claude-haiku-5-5", "Haiku 5.5 · bem mais barato e rápido"),
   ]
 
+  var backend: Backend {
+    didSet { UserDefaults.standard.set(backend.rawValue, forKey: "backend") }
+  }
+  /// Address printed by board_server.py, e.g. http://192.168.0.12:8765
+  var macURL: String {
+    didSet { UserDefaults.standard.set(macURL, forKey: "macURL") }
+  }
+  /// Code printed by board_server.py, so nobody else on the network can use your Mac
+  var macToken: String {
+    didSet { UserDefaults.standard.set(macToken, forKey: "macToken") }
+  }
   var apiKey: String {
     didSet { Keychain.save(apiKey) }
   }
@@ -22,6 +38,10 @@ final class AppSettings {
   }
 
   init() {
+    let defaults = UserDefaults.standard
+    backend = Backend(rawValue: defaults.string(forKey: "backend") ?? "") ?? .mac
+    macURL = defaults.string(forKey: "macURL") ?? ""
+    macToken = defaults.string(forKey: "macToken") ?? ""
     apiKey = Keychain.load() ?? ""
     model = UserDefaults.standard.string(forKey: "model") ?? "claude-opus-5-5"
     let saved = UserDefaults.standard.double(forKey: "interval")

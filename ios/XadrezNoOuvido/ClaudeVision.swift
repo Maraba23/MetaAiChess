@@ -2,12 +2,7 @@ import UIKit
 
 /// Asks Claude which of the opponent's legal moves the photo shows, if any.
 /// Raw HTTP to the Messages API (there is no official Anthropic Swift SDK).
-struct ClaudeVision {
-  struct Answer: Decodable {
-    let move: String   // a UCI string from the legal list, or "none"
-    let confidence: String   // "high" or "low"
-  }
-
+struct ClaudeVision: MoveReader {
   enum Failure: LocalizedError {
     case missingKey, badKey, rateLimited, http(Int, String), unreadable
     var errorDescription: String? {
@@ -24,7 +19,7 @@ struct ClaudeVision {
   let apiKey: String
   let model: String
 
-  func detectMove(in image: UIImage, state: BoardState) async throws -> Answer {
+  func detectMove(in image: UIImage, state: BoardState) async throws -> MoveAnswer {
     guard !apiKey.isEmpty else { throw Failure.missingKey }
     guard let jpeg = Self.jpeg(image) else { throw Failure.unreadable }
 
@@ -105,9 +100,9 @@ struct ClaudeVision {
     }
     let decoded = try JSONDecoder().decode(Response.self, from: data)
     // A declined request has no usable content; treat it as "no move seen"
-    if decoded.stop_reason == "refusal" { return Answer(move: "none", confidence: "low") }
+    if decoded.stop_reason == "refusal" { return MoveAnswer(move: "none", confidence: "low") }
     guard let text = decoded.content.first(where: { $0.type == "text" })?.text,
-      let answer = try? JSONDecoder().decode(Answer.self, from: Data(text.utf8))
+      let answer = try? JSONDecoder().decode(MoveAnswer.self, from: Data(text.utf8))
     else { throw Failure.unreadable }
     return answer
   }
