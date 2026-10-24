@@ -1,0 +1,420 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Xadrez no Ouvido</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: one phone-width column, with status on top, the board in the middle, and controls under the thumb */
+:root{
+  --bg:#EDF0F2; --surface:#FFFFFF; --fg:#14181C; --muted:#5B6670; --line:#D3DAE0;
+  --accent:#D9822B; --accent-fg:#1B1103; --danger:#B3261E;
+  --sq-l:#DDE4EA; --sq-d:#7E95A8; --hl:rgba(217,130,43,.55); --sel:rgba(40,120,200,.45); --dot:rgba(20,24,28,.3);
+  --coord-l:#5F7487; --coord-d:#E6ECF0;
+  --piece-w:#FBFBF8; --piece-b:#16191C; --piece-edge:#16191C;
+  --f-display:"Bricolage Grotesque", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono:"JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0E1215; --surface:#171D22; --fg:#E3E8EC; --muted:#93A0AB; --line:#2A333B;
+  --accent:#F0A04B; --accent-fg:#1B1103; --danger:#F2867E;
+  --sq-l:#AEBBC6; --sq-d:#5A7083; --hl:rgba(240,160,75,.62); --sel:rgba(90,160,230,.55); --dot:rgba(10,12,14,.38);
+  --coord-l:#4A5E70; --coord-d:#D3DCE3; color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0E1215; --surface:#171D22; --fg:#E3E8EC; --muted:#93A0AB; --line:#2A333B;
+  --accent:#F0A04B; --accent-fg:#1B1103; --danger:#F2867E;
+  --sq-l:#AEBBC6; --sq-d:#5A7083; --hl:rgba(240,160,75,.62); --sel:rgba(90,160,230,.55); --dot:rgba(10,12,14,.38);
+  --coord-l:#4A5E70; --coord-d:#D3DCE3; color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-display);font-size:1rem;line-height:1.45;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));padding-block:16px 40px;
+  -webkit-tap-highlight-color:transparent}
+.wrap{max-width:540px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+h1{font-size:1.5rem;font-weight:800;letter-spacing:-.02em;margin:0;text-wrap:balance}
+.engine-tag{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);letter-spacing:.04em;text-transform:uppercase}
+
+.status{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;min-height:76px;display:flex;flex-direction:column;justify-content:center;gap:2px}
+.status .main{font-size:1.05rem;font-weight:600;text-wrap:balance}
+.status .sub{font-size:.88rem;color:var(--muted)}
+.status.sugg{border-color:var(--accent)}
+.status .move{font-family:var(--f-mono);font-weight:700;font-size:1.7rem;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.status .move .g{font-family:"Apple Symbols","Segoe UI Symbol","DejaVu Sans",serif;font-weight:400;font-size:2rem;line-height:1}
+.status.err{border-color:var(--danger)}
+.status.err .main{color:var(--danger)}
+
+.board-wrap{position:relative;width:100%;max-width:100%;aspect-ratio:1/1}
+.board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:100%;height:100%;border-radius:6px;overflow:hidden;border:1px solid var(--line);user-select:none;-webkit-user-select:none}
+.sq{position:relative;border:0;padding:0;margin:0;display:flex;align-items:center;justify-content:center;cursor:pointer;font:inherit;color:inherit}
+.sq.l{background:var(--sq-l)} .sq.d{background:var(--sq-d)}
+.sq.last::after{content:"";position:absolute;inset:0;background:var(--hl)}
+.sq.sel::after{content:"";position:absolute;inset:0;background:var(--sel)}
+.sq.tgt::before{content:"";position:absolute;width:30%;height:30%;border-radius:50%;background:var(--dot);z-index:2}
+.sq.tgt.cap::before{width:86%;height:86%;background:transparent;border:5px solid var(--dot)}
+.sq:focus-visible{outline:3px solid var(--accent);outline-offset:-3px;z-index:3}
+.pc{position:relative;z-index:1;font-family:"Apple Symbols","Segoe UI Symbol","DejaVu Sans",serif;font-size:min(10.4vw,56px);line-height:1;pointer-events:none}
+.pc.w{color:var(--piece-w);text-shadow:0 0 1px var(--piece-edge),1px 0 0 var(--piece-edge),-1px 0 0 var(--piece-edge),0 1px 0 var(--piece-edge),0 -1px 0 var(--piece-edge)}
+.pc.b{color:var(--piece-b);text-shadow:0 0 1px rgba(255,255,255,.35)}
+.co{position:absolute;font-family:var(--f-mono);font-size:min(2.6vw,11px);font-weight:700;z-index:1;pointer-events:none}
+.co.f{right:3px;bottom:1px} .co.r{left:3px;top:1px}
+.sq.l .co{color:var(--coord-l)} .sq.d .co{color:var(--coord-d)}
+
+.promo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,.45);border-radius:6px;z-index:5}
+.promo-box{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;align-items:center}
+.promo-box p{margin:0;font-weight:600}
+.promo-row{display:flex;gap:6px}
+.promo-row button{width:56px;height:56px;border-radius:10px;border:1px solid var(--line);background:var(--sq-l);cursor:pointer}
+.promo-row .pc{font-size:40px}
+
+.controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.btn{font:inherit;font-weight:600;font-size:.98rem;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);padding:12px 10px;min-height:48px;cursor:pointer}
+.btn:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
+.btn.wide{grid-column:1/-1}
+.btn.on{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+
+.setup{display:flex;flex-direction:column;gap:12px}
+.field{display:flex;flex-direction:column;gap:6px}
+.label{font-size:.75rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--muted)}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 0;min-width:88px;font:inherit;font-size:.92rem;font-weight:600;padding:10px 8px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--fg);cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:1px}
+.seg button small{font-weight:400;font-size:.74rem;color:var(--muted)}
+.seg button[aria-pressed="true"]{border-color:var(--accent);box-shadow:inset 0 0 0 1px var(--accent)}
+.seg button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+
+.help{border-top:1px solid var(--line);padding-top:14px;font-size:.92rem;color:var(--muted);max-width:65ch}
+.help h2{font-size:1rem;color:var(--fg);margin:0 0 8px;font-weight:700}
+.help ol{margin:0;padding-left:1.2rem;display:flex;flex-direction:column;gap:6px}
+.help b{color:var(--fg);font-weight:600}
+
+body.discreet .status .move, body.discreet .status .detail{visibility:hidden}
+body.discreet .board{filter:brightness(.55) saturate(.6)}
+@media (prefers-reduced-motion: no-preference){.status{transition:border-color .2s}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Xadrez no Ouvido</h1>
+    <span class="engine-tag" id="engineTag">Stockfish 10 · carregando</span>
+  </header>
+
+  <div class="status" id="status" role="status" aria-live="polite"></div>
+
+  <div class="board-wrap">
+    <div class="board" id="board" aria-label="Tabuleiro"></div>
+    <div class="promo" id="promo" hidden>
+      <div class="promo-box">
+        <p>Promover para</p>
+        <div class="promo-row" id="promoRow"></div>
+      </div>
+    </div>
+  </div>
+
+  <section class="setup" id="setup">
+    <div class="field">
+      <span class="label">Você joga de</span>
+      <div class="seg" id="colorSeg">
+        <button type="button" id="colW" data-v="w">Brancas<small>começa você</small></button>
+        <button type="button" id="colB" data-v="b">Pretas<small>começa seu amigo</small></button>
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Força</span>
+      <div class="seg" id="levelSeg">
+        <button type="button" id="lvH" data-v="humano">Humano<small>menos suspeito</small></button>
+        <button type="button" id="lvF" data-v="forte">Forte<small>1,5 s por lance</small></button>
+        <button type="button" id="lvM" data-v="maximo">Máximo<small>3,5 s por lance</small></button>
+      </div>
+    </div>
+    <button type="button" class="btn primary" id="startBtn">Começar e testar o áudio</button>
+  </section>
+
+  <section class="controls" id="controls" hidden>
+    <button type="button" class="btn primary" id="suggestBtn">Sugerir lance</button>
+    <button type="button" class="btn" id="repeatBtn">Repetir no ouvido</button>
+    <button type="button" class="btn" id="undoBtn">Desfazer</button>
+    <button type="button" class="btn" id="discreetBtn" aria-pressed="false">Modo discreto</button>
+    <button type="button" class="btn wide" id="newBtn">Nova partida</button>
+  </section>
+
+  <section class="help">
+    <h2>Como usar com o Ray-Ban Meta</h2>
+    <ol>
+      <li>Deixe o óculos conectado ao iPhone. Ele funciona como fone Bluetooth. Ao tocar em <b>Começar</b>, você deve ouvir “Pronto” no óculos.</li>
+      <li>Tire o iPhone do modo silencioso e deixe o volume baixo. O alto-falante do óculos é aberto, e quem estiver perto pode ouvir.</li>
+      <li>Quando seu amigo jogar, toque na peça que ele moveu e depois na casa de destino. O melhor lance sai no seu ouvido e já aparece no tabuleiro.</li>
+      <li>Se você jogou outro lance, toque em <b>Desfazer</b> e marque no tabuleiro o lance que fez de verdade.</li>
+      <li><b>Modo discreto</b> escurece a tela e esconde o lance escrito. Assim a dica fica só no áudio.</li>
+    </ol>
+  </section>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const GLYPH = {k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'};
+const VS = '︎'; // keep iOS from drawing the pawn as an emoji
+const PIECE = {p:'Peão',n:'Cavalo',b:'Bispo',r:'Torre',q:'Dama',k:'Rei'};
+const FILE_SPOKEN = {a:'á',b:'bê',c:'cê',d:'dê',e:'é',f:'éfe',g:'gê',h:'agá'};
+const LEVELS = {humano:{skill:12,ms:700}, forte:{skill:20,ms:1500}, maximo:{skill:20,ms:3500}};
+const STORE_KEY = 'xadrez-no-ouvido';
+
+const game = new Chess();
+let myColor = 'w', level = 'forte', started = false, discreet = false;
+let selected = null, lastMove = null, suggestion = null, thinking = false;
+let engine = null, engineOk = false, ignoreBest = 0, voice = null, lastSpoken = '', wakeLock = null;
+let pendingPromo = null, errorMsg = '';
+
+/* ---------- engine ---------- */
+function initEngine(){
+  // Inside the iPhone app the engine source is injected, since WKWebView can't start a Worker from a bundle file
+  try { engine = window.__SF_SRC ? new Worker(URL.createObjectURL(new Blob([window.__SF_SRC], {type:'text/javascript'}))) : new Worker('stockfish.js'); }
+  catch(e){ errorMsg = 'O motor de xadrez não carregou neste navegador. Abra a página no Safari.'; render(); return; }
+  engine.onmessage = e => {
+    const line = String(e.data);
+    if (line === 'uciok' || line === 'readyok'){ engineOk = true; $('engineTag').textContent = 'Stockfish 10 · pronto'; }
+    else if (line.startsWith('bestmove')) onBest(line.split(' ')[1]);
+  };
+  engine.onerror = () => { errorMsg = 'O motor de xadrez falhou. Recarregue a página.'; thinking = false; render(); };
+  engine.postMessage('uci');
+  engine.postMessage('isready');
+}
+function applyLevel(){ if (engine) engine.postMessage('setoption name Skill Level value ' + LEVELS[level].skill); }
+
+function think(){
+  if (!engine || game.game_over()) { render(); return; }
+  thinking = true; suggestion = null; selected = null;
+  render();
+  engine.postMessage('position fen ' + game.fen());
+  engine.postMessage('go movetime ' + LEVELS[level].ms);
+}
+function cancelThink(){
+  if (!thinking) return;
+  ignoreBest++; thinking = false;
+  engine.postMessage('stop');
+}
+function onBest(uci){
+  if (ignoreBest > 0){ ignoreBest--; return; }
+  thinking = false;
+  if (!uci || uci === '(none)'){ render(); return; }
+  const m = game.move({from:uci.slice(0,2), to:uci.slice(2,4), promotion:uci[4] || 'q'});
+  if (!m){ render(); return; }
+  lastMove = m; suggestion = m;
+  save(); render();
+  speak(phrase(m));
+}
+
+/* ---------- speech ---------- */
+function spokenSquare(s){ return FILE_SPOKEN[s[0]] + ' ' + s[1]; }
+function phrase(m){
+  let t;
+  if (m.flags.includes('k')) t = 'Roque pequeno';
+  else if (m.flags.includes('q')) t = 'Roque grande';
+  else {
+    t = PIECE[m.piece] + ' de ' + spokenSquare(m.from) + (m.captured ? ', captura em ' : ' para ') + spokenSquare(m.to);
+    if (m.promotion) t += ', promove a ' + PIECE[m.promotion];
+  }
+  if (m.san.includes('#')) t += '. Xeque-mate!';
+  else if (m.san.includes('+')) t += '. Xeque.';
+  return t;
+}
+function pickVoice(){
+  if (!('speechSynthesis' in window)) return;
+  const vs = speechSynthesis.getVoices();
+  voice = vs.find(v => v.lang === 'pt-BR') || vs.find(v => (v.lang || '').toLowerCase().startsWith('pt')) || null;
+}
+const nativeBridge = window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.native;
+function speak(text){
+  lastSpoken = text;
+  if (nativeBridge){ nativeBridge.postMessage({type:'speak', text}); return; }
+  if (!('speechSynthesis' in window)) return;
+  try {
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'pt-BR'; if (voice) u.voice = voice; u.rate = 0.95;
+    speechSynthesis.speak(u);
+  } catch(e){}
+}
+
+/* ---------- board ---------- */
+function onSquare(sq){
+  if (!started || thinking || game.game_over()) return;
+  if (selected){
+    if (sq === selected){ selected = null; render(); return; }
+    const legal = game.moves({square:selected, verbose:true}).filter(m => m.to === sq);
+    if (legal.length){
+      if (legal.some(m => m.promotion)){ pendingPromo = {from:selected, to:sq}; showPromo(); return; }
+      doMove({from:selected, to:sq}); return;
+    }
+  }
+  const p = game.get(sq);
+  selected = (p && p.color === game.turn()) ? sq : null;
+  render();
+}
+function doMove(mv){
+  const friendMoved = game.turn() !== myColor;
+  const m = game.move(mv);
+  if (!m) return;
+  selected = null; lastMove = m; suggestion = null;
+  save();
+  if (friendMoved && !game.game_over()) think(); else render();
+}
+function showPromo(){
+  const color = game.turn();
+  $('promoRow').innerHTML = ['q','r','b','n'].map(p =>
+    `<button type="button" id="promo-${p}" data-p="${p}" aria-label="${PIECE[p]}"><span class="pc ${color}">${GLYPH[p]+VS}</span></button>`).join('');
+  $('promo').hidden = false;
+}
+$('promoRow').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !pendingPromo) return;
+  $('promo').hidden = true;
+  const mv = Object.assign({promotion:b.dataset.p}, pendingPromo);
+  pendingPromo = null;
+  doMove(mv);
+});
+
+function render(){
+  const files = myColor === 'w' ? 'abcdefgh' : 'hgfedcba';
+  const ranks = myColor === 'w' ? '87654321' : '12345678';
+  const targets = selected ? game.moves({square:selected, verbose:true}) : [];
+  let html = '';
+  for (let r = 0; r < 8; r++) for (let f = 0; f < 8; f++){
+    const sq = files[f] + ranks[r];
+    const light = ('abcdefgh'.indexOf(sq[0]) + +sq[1]) % 2 === 1;
+    const p = game.get(sq);
+    const tgt = targets.find(m => m.to === sq);
+    const cls = ['sq', light ? 'l' : 'd'];
+    if (lastMove && (lastMove.from === sq || lastMove.to === sq)) cls.push('last');
+    if (selected === sq) cls.push('sel');
+    if (tgt) cls.push('tgt', p ? 'cap' : '');
+    const label = sq + (p ? ' ' + PIECE[p.type] + (p.color === 'w' ? ' branco' : ' preto') : '');
+    html += `<button type="button" class="${cls.join(' ')}" data-sq="${sq}" aria-label="${label}">`
+      + (p ? `<span class="pc ${p.color}">${GLYPH[p.type] + VS}</span>` : '')
+      + (r === 7 ? `<span class="co f">${sq[0]}</span>` : '')
+      + (f === 0 ? `<span class="co r">${sq[1]}</span>` : '')
+      + '</button>';
+  }
+  $('board').innerHTML = html;
+
+  $('setup').hidden = started;
+  $('controls').hidden = !started;
+  $('colW').setAttribute('aria-pressed', myColor === 'w');
+  $('colB').setAttribute('aria-pressed', myColor === 'b');
+  $('lvH').setAttribute('aria-pressed', level === 'humano');
+  $('lvF').setAttribute('aria-pressed', level === 'forte');
+  $('lvM').setAttribute('aria-pressed', level === 'maximo');
+
+  const myTurn = game.turn() === myColor;
+  $('suggestBtn').disabled = !myTurn || thinking || game.game_over();
+  $('repeatBtn').disabled = !lastSpoken;
+  $('undoBtn').disabled = game.history().length === 0;
+  $('discreetBtn').setAttribute('aria-pressed', discreet);
+  $('discreetBtn').classList.toggle('on', discreet);
+  document.body.classList.toggle('discreet', discreet);
+
+  renderStatus(myTurn);
+  notifyNative();
+}
+
+/* ---------- iPhone app bridge: the native side watches the glasses camera for the friend's move ---------- */
+function notifyNative(){
+  if (!nativeBridge) return;
+  const waiting = started && !thinking && !game.game_over() && game.turn() !== myColor;
+  nativeBridge.postMessage({
+    type: 'state', waitingForFriend: waiting, fen: game.fen(), myColor,
+    legal: waiting ? game.moves({verbose:true}).map(m => ({uci: m.from + m.to + (m.promotion || ''), san: m.san})) : []
+  });
+}
+window.applyFriendMove = function(uci){
+  if (!started || thinking || game.game_over() || game.turn() === myColor) return false;
+  const before = game.history().length;
+  doMove({from:uci.slice(0,2), to:uci.slice(2,4), promotion:uci[4] || 'q'});
+  return game.history().length > before;
+};
+
+function renderStatus(myTurn){
+  const el = $('status');
+  el.className = 'status';
+  let main = '', sub = '';
+  if (errorMsg){ el.classList.add('err'); main = errorMsg; }
+  else if (!started){ main = 'Escolha sua cor e a força.'; sub = 'Depois toque em Começar. O iPhone vai falar no seu óculos para testar o áudio.'; }
+  else if (game.in_checkmate()){ main = game.turn() === myColor ? 'Xeque-mate. Seu amigo venceu.' : 'Xeque-mate. Você venceu!'; sub = 'Toque em Nova partida para jogar de novo.'; }
+  else if (game.in_draw() || game.in_stalemate() || game.in_threefold_repetition()){ main = 'Empate.'; sub = 'Toque em Nova partida para jogar de novo.'; }
+  else if (thinking){ main = 'Pensando…'; sub = 'O lance vai sair no seu ouvido.'; }
+  else if (suggestion && !myTurn){
+    el.classList.add('sugg');
+    const s = suggestion;
+    const glyph = `<span class="g">${GLYPH[s.piece] + VS}</span>`;
+    el.innerHTML = `<div class="move">${glyph}<span>${s.from} → ${s.to}</span></div>`
+      + `<div class="sub detail">${phrase(s)}</div>`
+      + `<div class="sub">Faça esse lance. Depois marque aqui o lance do seu amigo.</div>`;
+    return;
+  }
+  else if (!myTurn){ main = 'Vez do seu amigo.'; sub = 'Toque na peça que ele moveu e depois na casa de destino.'; }
+  else { main = 'Sua vez.'; sub = 'Toque em Sugerir lance ou marque o lance que você fez.'; }
+  el.innerHTML = `<div class="main">${main}</div>` + (sub ? `<div class="sub">${sub}</div>` : '');
+}
+
+/* ---------- persistence ---------- */
+function save(){
+  try { localStorage.setItem(STORE_KEY, JSON.stringify({pgn:game.pgn(), myColor, level, started, discreet})); } catch(e){}
+}
+function restore(){
+  try {
+    const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+    if (!s) return;
+    myColor = s.myColor === 'b' ? 'b' : 'w';
+    if (LEVELS[s.level]) level = s.level;
+    discreet = !!s.discreet;
+    if (s.pgn) game.load_pgn(s.pgn);
+    started = !!s.started;
+    const h = game.history({verbose:true});
+    lastMove = h[h.length - 1] || null;
+  } catch(e){ game.reset(); }
+}
+
+/* ---------- controls ---------- */
+async function keepAwake(){
+  try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch(e){}
+}
+document.addEventListener('visibilitychange', () => { if (started && document.visibilityState === 'visible') keepAwake(); });
+
+$('board').addEventListener('click', e => { const b = e.target.closest('.sq'); if (b) onSquare(b.dataset.sq); });
+$('colorSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; myColor = b.dataset.v; render(); });
+$('levelSeg').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; level = b.dataset.v; render(); });
+
+$('startBtn').addEventListener('click', () => {
+  pickVoice();
+  speak('Pronto. Vou falar os lances aqui.');
+  game.reset(); lastMove = null; suggestion = null; selected = null;
+  started = true;
+  if (engine){ engine.postMessage('ucinewgame'); applyLevel(); }
+  keepAwake(); save();
+  if (game.turn() === myColor) think(); else render();
+});
+$('suggestBtn').addEventListener('click', () => { pickVoice(); think(); });
+$('repeatBtn').addEventListener('click', () => { pickVoice(); if (lastSpoken) speak(lastSpoken); });
+$('undoBtn').addEventListener('click', () => {
+  cancelThink();
+  if (!game.undo()) return;
+  const h = game.history({verbose:true});
+  lastMove = h[h.length - 1] || null; suggestion = null; selected = null;
+  save(); render();
+});
+$('discreetBtn').addEventListener('click', () => { discreet = !discreet; save(); render(); });
+$('newBtn').addEventListener('click', () => {
+  cancelThink();
+  game.reset(); started = false; lastMove = null; suggestion = null; selected = null; lastSpoken = '';
+  save(); render();
+});
+
+if ('speechSynthesis' in window){ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }
+restore();
+initEngine();
+applyLevel();
+render();
+</script>
