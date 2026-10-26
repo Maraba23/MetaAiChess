@@ -43,7 +43,7 @@ final class MoveWatcher {
       status = "Esperando a vez do seu amigo"
       return
     }
-    guard glasses.isStreaming, let frame = glasses.latestFrame,
+    guard glasses.isStreaming, let videoFrame = glasses.latestFrame,
       let frameDate = glasses.latestFrameDate, Date().timeIntervalSince(frameDate) < 3
     else {
       status = "Sem imagem do óculos"
@@ -51,6 +51,8 @@ final class MoveWatcher {
     }
 
     status = candidate == nil ? "Olhando o tabuleiro…" : "Confirmando o lance…"
+    // A full-quality photo shows the pieces clearly; the 360x640 video frame is the fallback
+    let frame = await glasses.capturePhoto() ?? videoFrame
     let reader = MoveReaderFactory.make(settings)
     do {
       let answer = try await reader.detectMove(in: frame, state: state)
@@ -60,7 +62,8 @@ final class MoveWatcher {
         candidate = nil
         return
       }
-      guard answer.move != "none", answer.confidence == "high" else {
+      // Two agreeing reads in a row are the guard; Opus names the right move but often still says LOW at an angle
+      guard answer.move != "none" else {
         candidate = nil
         status = "Nenhum lance ainda"
         return

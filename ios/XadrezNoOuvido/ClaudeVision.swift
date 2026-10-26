@@ -107,8 +107,7 @@ struct ClaudeVision: MoveReader {
     return answer
   }
 
-  /// Glasses frames are 720x1280 at most, already within Claude's image size; just compress them.
   private static func jpeg(_ image: UIImage) -> Data? {
-    image.jpegData(compressionQuality: 0.7)
+    image.boardJPEG()
   }
 }

@@ -20,16 +20,17 @@ struct BoardState: Decodable, Equatable {
 @MainActor
 final class ChessBridge: NSObject, WKScriptMessageHandler {
   private(set) var state: BoardState?
-  @ObservationIgnored let webView: WKWebView
   @ObservationIgnored let speaker = Speaker()
+  /// Created when the board first appears: a WKWebView made in App.init, before the window exists,
+  /// crashed on the first tap on iOS 26 ("Invalid parameter not satisfying: targetNode" in UIGestureGraphEdge).
+  @ObservationIgnored private(set) lazy var webView: WKWebView = makeWebView()
 
-  override init() {
+  private func makeWebView() -> WKWebView {
     let contentController = WKUserContentController()
     let config = WKWebViewConfiguration()
     config.userContentController = contentController
     config.allowsInlineMediaPlayback = true
-    webView = WKWebView(frame: .zero, configuration: config)
-    super.init()
+    let webView = WKWebView(frame: .zero, configuration: config)
 
     contentController.add(WeakMessageHandler(self), name: "native")
     // chess.js runs as-is; Stockfish is handed over as a string and started as a blob Worker by index.html
@@ -44,10 +45,11 @@ final class ChessBridge: NSObject, WKScriptMessageHandler {
         WKUserScript(source: "window.__SF_SRC = \(literalText);", injectionTime: .atDocumentStart, forMainFrameOnly: true))
     }
     if #available(iOS 16.4, *) { webView.isInspectable = true }
-    load()
+    load(into: webView)
+    return webView
   }
 
-  func load() {
+  private func load(into webView: WKWebView) {
     guard let page = Self.bundleText("index", "html") else { return }
     // index.html is written as a page body (the artifact host adds the skeleton), so wrap it here
     let html = """

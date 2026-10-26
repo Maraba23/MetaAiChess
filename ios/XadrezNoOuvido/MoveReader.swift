@@ -6,6 +6,20 @@ struct MoveAnswer: Decodable {
   let confidence: String   // "high" or "low"
 }
 
+extension UIImage {
+  /// Glasses photos can be several megapixels; Claude scales anything past ~1568 px down anyway, so don't send more.
+  func boardJPEG(maxSide: CGFloat = 1568) -> Data? {
+    let longest = max(size.width, size.height)
+    guard longest > maxSide else { return jpegData(compressionQuality: 0.8) }
+    let scale = maxSide / longest
+    let target = CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+    let format = UIGraphicsImageRendererFormat.default()
+    format.scale = 1
+    let resized = UIGraphicsImageRenderer(size: target, format: format).image { _ in draw(in: CGRect(origin: .zero, size: target)) }
+    return resized.jpegData(compressionQuality: 0.8)
+  }
+}
+
 /// Something that can read the opponent's move from a glasses frame: the Mac server or the Claude API.
 protocol MoveReader {
   func detectMove(in image: UIImage, state: BoardState) async throws -> MoveAnswer
@@ -43,7 +57,7 @@ struct MacVision: MoveReader {
     guard let base = URL(string: serverURL.trimmingCharacters(in: .whitespaces)), base.host != nil else {
       throw Failure.missingURL
     }
-    guard let jpeg = image.jpegData(compressionQuality: 0.7) else { throw Failure.unreadable }
+    guard let jpeg = image.boardJPEG() else { throw Failure.unreadable }
     let body: [String: Any] = [
       "image_jpeg_base64": jpeg.base64EncodedString(),
       "fen": state.fen,

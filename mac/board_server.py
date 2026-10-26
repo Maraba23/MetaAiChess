@@ -26,7 +26,7 @@ TOKEN_FILE = Path.home() / ".xadrez-no-ouvido-token"
 
 SYSTEM_PROMPT = (
     "You read physical chessboards from photos taken by smart glasses worn by one of the players. "
-    "You answer with a single line and nothing else."
+    "You reason briefly, then give the answer alone on the last line."
 )
 
 
@@ -58,9 +58,14 @@ def build_prompt(fen, my_color, legal):
         "Compare the photo with that position. If {theirs} has completed exactly one of these moves "
         "(the piece is released on its new square, no hand over the board), answer with that move's UCI string "
         "followed by HIGH or LOW, for example: e7e5 HIGH\n"
-        "Use HIGH only when you can clearly see both the square the piece left and the square it landed on.\n"
+        "Before answering, check each candidate move against the photo: the move's starting square must now be "
+        "EMPTY, and the piece on its destination square must have the right shape (knight, pawn, bishop...). "
+        "Several moves can end on the same square, so the empty starting square decides between them.\n"
+        "Answer HIGH when that starting square is clearly empty and a matching piece stands on the destination, "
+        "even if the photo is taken at an angle. Answer LOW only if a piece or square is hidden or blurred.\n"
         "Otherwise answer exactly: NONE (no move made yet, a hand still on a piece, the board cut off, blurry or "
-        "mostly hidden, or you can't tell which move it was)."
+        "mostly hidden, or you can't tell which move it was).\n"
+        "Think briefly, then put the answer alone on the last line."
     ).format(mine=mine, theirs=theirs, fen=fen, legal_list=legal_list)
 
 
@@ -84,7 +89,7 @@ def ask_claude(image_b64, prompt, model, timeout):
         "--tools", "",
         "--max-turns", "1",
         "--no-session-persistence",
-        "--effort", "low",
+        "--effort", "low",  # with the empty-starting-square check, low is as accurate as medium and twice as fast
         "--system-prompt", SYSTEM_PROMPT,
         # Images only go in over stream-json, and stream-json input requires stream-json output
         "--input-format", "stream-json",
@@ -113,9 +118,12 @@ def ask_claude(image_b64, prompt, model, timeout):
 
 def parse_answer(text, legal_ucis):
     """Accept only a move from the legal list; anything else counts as no move."""
-    for token in re.findall(r"\b([a-h][1-8][a-h][1-8][qrbn]?)\b", text.lower()):
+    # The reasoning before it may name moves it ruled out, so only the last line is the answer
+    lines = [line for line in text.strip().splitlines() if line.strip()]
+    answer = lines[-1] if lines else ""
+    for token in re.findall(r"\b([a-h][1-8][a-h][1-8][qrbn]?)\b", answer.lower()):
         if token in legal_ucis:
-            confidence = "high" if re.search(r"\bhigh\b", text, re.IGNORECASE) else "low"
+            confidence = "high" if re.search(r"\bhigh\b", answer, re.IGNORECASE) else "low"
             return {"move": token, "confidence": confidence}
     return {"move": "none", "confidence": "low"}
 
@@ -161,6 +169,9 @@ class Handler(BaseHTTPRequestHandler):
         if self.server.save_dir:
             stamp = datetime.now().strftime("%H%M%S_%f")
             (self.server.save_dir / "frame_{}.jpg".format(stamp)).write_bytes(base64.b64decode(image_b64))
+            # The position the app expected, so a frame can be replayed against the same prompt
+            (self.server.save_dir / "frame_{}.json".format(stamp)).write_text(
+                json.dumps({"fen": fen, "my_color": my_color, "legal": legal}))
 
         started = time.time()
         try:
@@ -171,7 +182,8 @@ class Handler(BaseHTTPRequestHandler):
             log("erro: {}".format(exc))
             return self._send(502, {"error": str(exc)[:300]})
         answer = parse_answer(text, {m["uci"] for m in legal})
-        log("{:.1f}s  {} {}  (resposta: {!r})".format(time.time() - started, answer["move"], answer["confidence"], text.strip()[:80]))
+        last_line = text.strip().splitlines()[-1] if text.strip() else ""
+        log("{:.1f}s  {} {}  (resposta: {!r})".format(time.time() - started, answer["move"], answer["confidence"], last_line[:80]))
         self._send(200, answer)
 
     def log_message(self, fmt, *args):
@@ -185,7 +197,7 @@ def log(line):
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--port", type=int, default=8765)
-    parser.add_argument("--model", default="sonnet", help="Claude Code model alias: haiku (faster), sonnet, opus (slower)")
+    parser.add_argument("--model", default="opus", help="Claude Code model alias: opus (reads glasses photos best), sonnet, haiku (faster)")
     parser.add_argument("--timeout", type=int, default=60, help="seconds to wait for each Claude Code call")
     parser.add_argument("--save-frames", metavar="DIR", help="save every received frame here, to check what the glasses see")
     args = parser.parse_args()
